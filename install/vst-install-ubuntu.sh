@@ -7,8 +7,8 @@
 #----------------------------------------------------------#
 export PATH=$PATH:/sbin
 export DEBIAN_FRONTEND=noninteractive
-RHOST='apt.vestacp.com'
-CHOST='c.vestacp.com'
+RHOST='vesta-arm.s3.nl-ams.scw.cloud'
+CHOST='vesta-arm.s3.nl-ams.scw.cloud'
 VERSION='ubuntu'
 VESTA='/usr/local/vesta'
 memory=$(grep 'MemTotal' /proc/meminfo |tr ' ' '\n' |grep [0-9])
@@ -25,11 +25,10 @@ software="apache2 apache2.2-common apache2-suexec-custom apache2-utils
     exim4-daemon-heavy expect fail2ban flex ftp git idn imagemagick
     libapache2-mod-fcgid libapache2-mod-php libapache2-mod-rpaf
     libapache2-mod-ruid2 lsof mc mysql-client mysql-common mysql-server nginx
-    ntpdate php-cgi php-common php-curl php-fpm phpmyadmin php-mysql
+    ntpdate rsyslog php-cgi php-common php-curl php-fpm phpmyadmin php-mysql
     phppgadmin php-pgsql postgresql postgresql-contrib proftpd-basic quota
     roundcube-core roundcube-mysql roundcube-plugins rrdtool rssh spamassassin
-    sudo vesta vesta-ioncube vesta-nginx vesta-php vesta-softaculous
-    vim-common vsftpd webalizer whois zip"
+    sudo vesta vesta-nginx vesta-php vim-common vsftpd webalizer whois zip"
 
 # Fix for old releases
 if [[ ${release:0:2} -lt 16 ]]; then
@@ -56,7 +55,6 @@ help() {
   -t, --spamassassin      Install SpamAssassin  [yes|no]  default: yes
   -i, --iptables          Install Iptables      [yes|no]  default: yes
   -b, --fail2ban          Install Fail2ban      [yes|no]  default: yes
-  -o, --softaculous       Install Softaculous   [yes|no]  default: yes
   -q, --quota             Filesystem Quota      [yes|no]  default: no
   -l, --lang              Default language                default: en
   -y, --interactive       Interactive install   [yes|no]  default: yes
@@ -143,7 +141,6 @@ for arg; do
         --spamassassin)         args="${args}-t " ;;
         --iptables)             args="${args}-i " ;;
         --fail2ban)             args="${args}-b " ;;
-        --softaculous)          args="${args}-o " ;;
         --remi)                 args="${args}-r " ;;
         --quota)                args="${args}-q " ;;
         --lang)                 args="${args}-l " ;;
@@ -178,7 +175,6 @@ while getopts "a:n:w:v:j:k:m:g:d:x:z:c:t:i:b:r:o:q:l:y:s:e:p:fh" Option; do
         i) iptables=$OPTARG ;;          # Iptables
         b) fail2ban=$OPTARG ;;          # Fail2ban
         r) remi=$OPTARG ;;              # Remi repo
-        o) softaculous=$OPTARG ;;       # Softaculous plugin
         q) quota=$OPTARG ;;             # FS Quota
         l) lang=$OPTARG ;;              # Language
         y) interactive=$OPTARG ;;       # Interactive install
@@ -212,7 +208,6 @@ else
 fi
 set_default_value 'iptables' 'yes'
 set_default_value 'fail2ban' 'yes'
-set_default_value 'softaculous' 'yes'
 set_default_value 'quota' 'no'
 set_default_value 'interactive' 'yes'
 set_default_lang 'en'
@@ -254,8 +249,8 @@ if [ ! -e '/usr/bin/wget' ]; then
 fi
 
 # Checking repository availability
-wget -q "c.vestacp.com/deb_signing.key" -O /dev/null
-check_result $? "No access to Vesta repository"
+wget -q "https://vesta-arm.s3.nl-ams.scw.cloud/deb_signing.key" -O /dev/null
+check_result $? "No access to Vesta ARM repository"
 
 # Checking installed packages
 tmpfile=$(mktemp -p /tmp)
@@ -408,17 +403,23 @@ if ! [[ "$servername" =~ ^${mask1}${mask2}$ ]]; then
     else
         servername="example.com"
     fi
-    echo "127.0.0.1 $servername" >> /etc/hosts
-fi
-
-# Set email if it wasn't set
-if [ -z "$email" ]; then
-    email="admin@$servername"
 fi
 
 # Defining backup directory
 vst_backups="/root/vst_install_backups/$(date +%s)"
 echo "Installation backup directory: $vst_backups"
+
+# Backup hosts file
+cp /etc/hosts $vst_backups/hosts > /dev/null 2>&1
+
+# Set a fresh /etc/hosts
+rm /etc/hosts
+sed -e "s/server/$servername/" /etc/hosts.default > /etc/hosts
+
+# Set email if it wasn't set
+if [ -z "$email" ]; then
+    email="admin@$servername"
+fi
 
 # Printing start message and sleeping for 5 seconds
 echo -e "\n\n\n\nInstallation will take about 15 minutes ...\n"
@@ -462,7 +463,7 @@ wget http://nginx.org/keys/nginx_signing.key -O /tmp/nginx_signing.key
 apt-key add /tmp/nginx_signing.key
 
 # Installing vesta repo
-echo "deb http://$RHOST/$codename/ $codename vesta" > $apt/vesta.list
+echo "deb http://$RHOST/ $codename vesta" > $apt/vesta.list
 wget $CHOST/deb_signing.key -O deb_signing.key
 apt-key add deb_signing.key
 
@@ -618,9 +619,6 @@ if [ "$postgresql" = 'no' ]; then
     software=$(echo "$software" | sed -e 's/php-pgsql//')
     software=$(echo "$software" | sed -e 's/phppgadmin//')
 fi
-if [ "$softaculous" = 'no' ]; then
-    software=$(echo "$software" | sed -e 's/vesta-softaculous//')
-fi
 if [ "$iptables" = 'no' ] || [ "$fail2ban" = 'no' ]; then
     software=$(echo "$software" | sed -e 's/fail2ban//')
 fi
@@ -648,6 +646,10 @@ rm -f /usr/sbin/policy-rc.d
 #----------------------------------------------------------#
 #                     Configure system                     #
 #----------------------------------------------------------#
+
+# Start rsyslog required for fail2ban operation
+update-rc.d rsyslog defaults
+service rsyslog start
 
 # Enabling SSH password auth
 sed -i "s/rdAuthentication no/rdAuthentication yes/g" /etc/ssh/sshd_config
@@ -948,7 +950,6 @@ fi
 #----------------------------------------------------------#
 
 if [ "$proftpd" = 'yes' ]; then
-    echo "127.0.0.1 $servername" >> /etc/hosts
     cp -f $vestacp/proftpd/proftpd.conf /etc/proftpd/
     update-rc.d proftpd defaults
     service proftpd start
@@ -1191,14 +1192,10 @@ if [ "$fail2ban" = 'yes' ]; then
         sed -i "${fline}s/true/false/" /etc/fail2ban/jail.local
     fi
     if [ "$vsftpd" = 'yes' ]; then
-        #Create vsftpd Log File
-        if [ ! -f "/var/log/vsftpd.log" ]; then
-            touch /var/log/vsftpd.log
-        fi
         fline=$(cat /etc/fail2ban/jail.local |grep -n vsftpd-iptables -A 2)
         fline=$(echo "$fline" |grep enabled |tail -n1 |cut -f 1 -d -)
         sed -i "${fline}s/false/true/" /etc/fail2ban/jail.local
-    fi 
+    fi
     update-rc.d fail2ban defaults
     service fail2ban start
     check_result $? "fail2ban start failed"
@@ -1239,7 +1236,7 @@ if [ "$iptables" = 'yes' ]; then
 fi
 
 # Get public IP
-pub_ip=$(curl -s vestacp.com/what-is-my-ip/)
+pub_ip=$(curl -s api.ipify.org)
 if [ ! -z "$pub_ip" ] && [ "$pub_ip" != "$ip" ]; then
     echo "$VESTA/bin/v-update-sys-ip" >> /etc/rc.local
     $VESTA/bin/v-change-sys-ip-nat $ip $pub_ip
