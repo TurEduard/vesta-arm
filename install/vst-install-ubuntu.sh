@@ -1090,6 +1090,10 @@ if [ "$dovecot" = 'yes' ]; then
     cp -rf $vestacp/dovecot /etc/
     cp -f $vestacp/logrotate/dovecot /etc/logrotate.d/
     chown -R root:root /etc/dovecot*
+    if [  -e '/etc/dovecot/conf.d/15-mailboxes.conf' ]; then
+        mv /etc/dovecot/conf.d/15-mailboxes.conf \
+            /etc/dovecot/conf.d/15-mailboxes.conf.vst.null
+    fi
     update-rc.d dovecot defaults
     service dovecot start
     check_result $? "dovecot start failed"
