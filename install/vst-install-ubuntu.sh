@@ -249,7 +249,7 @@ if [ ! -e '/usr/bin/wget' ]; then
 fi
 
 # Checking repository availability
-wget -q "https://vesta-arm.s3.nl-ams.scw.cloud/deb_signing.key" -O /dev/null
+wget -q "https://raw.githubusercontent.com/TurEduard/vesta-arm/master/install/ubuntu/18.04/deb_signing.key" -O /dev/null
 check_result $? "No access to Vesta ARM repository"
 
 # Checking installed packages
