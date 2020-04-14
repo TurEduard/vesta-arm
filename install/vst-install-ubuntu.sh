@@ -7,8 +7,8 @@
 #----------------------------------------------------------#
 export PATH=$PATH:/sbin
 export DEBIAN_FRONTEND=noninteractive
-RHOST='vesta-arm.s3.nl-ams.scw.cloud'
-CHOST='vesta-arm.s3.nl-ams.scw.cloud'
+RHOST='raw.githubusercontent.com/TurEduard/vesta-arm/master'
+CHOST='raw.githubusercontent.com/TurEduard/vesta-arm/master'
 VERSION='ubuntu'
 VESTA='/usr/local/vesta'
 memory=$(grep 'MemTotal' /proc/meminfo |tr ' ' '\n' |grep [0-9])
